@@ -1,0 +1,7 @@
+# RISC-V Sifter Python Dependencies
+
+# Capstone disassembler - highly recommended
+capstone>=4.0.0
+
+# Note: The tool can run without capstone, but disassembly
+# functionality will be limited.
