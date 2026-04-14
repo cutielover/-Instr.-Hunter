@@ -6,6 +6,8 @@ LDFLAGS = -lpthread
 
 # AArch64 cross (Linux GNU target); override on native arm64 host: make CC_AARCH64=gcc
 CC_AARCH64 ?= aarch64-linux-gnu-gcc
+# MIPS64 little-endian cross; override on native mips64le host: make CC_MIPS=gcc
+CC_MIPS ?= mips64el-linux-gnuabi64-gcc
 
 USE_CAPSTONE ?= 1
 ifeq ($(USE_CAPSTONE),1)
@@ -30,6 +32,7 @@ BIN_DIR = .
 
 TARGET = $(BIN_DIR)/injector
 TARGET_AARCH64 = $(BIN_DIR)/injector_aarch64
+TARGET_MIPS = $(BIN_DIR)/injector_mips
 
 RV_C_SRCS = $(SRC_DIR)/injector_core.c $(SRC_DIR)/arch_riscv.c $(SRC_DIR)/ptrace_runner.c
 RV_S_SRCS = $(SRC_DIR)/handler_trampoline.S
@@ -41,11 +44,15 @@ A64_S_SRCS = $(SRC_DIR)/handler_trampoline_aarch64.S
 A64_OBJS = $(OBJ_DIR)/injector_core_a64.o $(OBJ_DIR)/arch_aarch64.o $(OBJ_DIR)/ptrace_runner_a64.o \
            $(OBJ_DIR)/handler_trampoline_aarch64.o
 
+MIPS_C_SRCS = $(SRC_DIR)/injector_core.c $(SRC_DIR)/arch_mips.c $(SRC_DIR)/ptrace_runner.c
+MIPS_OBJS = $(OBJ_DIR)/injector_core_mips.o $(OBJ_DIR)/arch_mips.o $(OBJ_DIR)/ptrace_runner_mips.o
+
 all: dirs $(TARGET)
 	@chmod +x sifter.py summarize.py
 	@echo ""
 	@echo "Build complete: $(TARGET)"
 	@echo "For AArch64 Linux: make injector_aarch64"
+	@echo "For MIPS64 Linux:  make injector_mips"
 	@echo ""
 
 dirs:
@@ -61,10 +68,21 @@ $(TARGET_AARCH64): $(A64_OBJS) | dirs
 	@echo "Build complete: $(TARGET_AARCH64)"
 	@echo ""
 
+$(TARGET_MIPS): $(MIPS_OBJS) | dirs
+	$(CC_MIPS) $(MIPS_OBJS) -o $@ $(LDFLAGS)
+	@chmod +x sifter.py summarize.py
+	@echo ""
+	@echo "Build complete: $(TARGET_MIPS)"
+	@echo ""
+
 .PHONY: build-aarch64
 build-aarch64: $(TARGET_AARCH64)
 
+.PHONY: build-mips
+build-mips: $(TARGET_MIPS)
+
 $(RV_OBJS) $(A64_OBJS): | dirs
+$(MIPS_OBJS): | dirs
 
 # RISC-V objects (default CC)
 $(OBJ_DIR)/injector_core.o: $(SRC_DIR)/injector_core.c
@@ -92,8 +110,18 @@ $(OBJ_DIR)/ptrace_runner_a64.o: $(SRC_DIR)/ptrace_runner.c
 $(OBJ_DIR)/handler_trampoline_aarch64.o: $(SRC_DIR)/handler_trampoline_aarch64.S
 	$(CC_AARCH64) $(CFLAGS) -c $< -o $@
 
+# MIPS objects
+$(OBJ_DIR)/injector_core_mips.o: $(SRC_DIR)/injector_core.c
+	$(CC_MIPS) $(CFLAGS) -I$(INC_DIR) -c $< -o $@
+
+$(OBJ_DIR)/arch_mips.o: $(SRC_DIR)/arch_mips.c
+	$(CC_MIPS) $(CFLAGS) -I$(INC_DIR) -c $< -o $@
+
+$(OBJ_DIR)/ptrace_runner_mips.o: $(SRC_DIR)/ptrace_runner.c
+	$(CC_MIPS) $(CFLAGS) -I$(INC_DIR) -c $< -o $@
+
 clean:
-	rm -rf $(OBJ_DIR) $(TARGET) $(TARGET_AARCH64)
+	rm -rf $(OBJ_DIR) $(TARGET) $(TARGET_AARCH64) $(TARGET_MIPS)
 
 distclean: clean
 	rm -rf data/* results/*
@@ -178,4 +206,4 @@ macos-deps:
 
 .PHONY: all dirs clean distclean deps cross-deps aarch64-cross-deps test-build run run-headless run-quick analyze report
 .PHONY: qemu-build qemu-scan qemu-scan-random qemu-analyze docker-build docker-run
-.PHONY: macos-run macos-quick macos-shell macos-rebuild macos-deps build-aarch64
+.PHONY: macos-run macos-quick macos-shell macos-rebuild macos-deps build-aarch64 build-mips

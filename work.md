@@ -147,11 +147,9 @@ Python 端 `RawResult.__init__` 解析这 12 字节。分类逻辑中 `disas_val
 - Python 端为 worker K 传 `--stride N --offset K`。
 - 恢复时传 `--begin <last_encoding>`，injector 从该编码继续按 stride 步进。
 
-### 备选方案：按 opcode 分组
+### 备选方案：按 opcode 分组（已弃用）
 
-按 `bits[6:0]`（128 种 opcode）分组，将 opcode 组均匀分配给 N 个 worker。每个 worker 扫描若干 opcode 组的完整编码空间。
-
-优点是每个 worker 的 opcode 种类数量相当，且保持范围连续性（方便续跑）。缺点是实现复杂度高，且 opcode 组内的 hidden 分布仍可能不均。
+历史上考虑过按 `bits[6:0]` 分组的调度方案。由于复杂度较高且收益不稳定，当前实现已移除“按 opcode 组定向搜索”路径，仅保留 exhaustive/random 两种模式。
 
 ---
 

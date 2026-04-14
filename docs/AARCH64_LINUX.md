@@ -27,7 +27,7 @@ The default `CC_AARCH64=aarch64-linux-gnu-gcc` produces binaries for **Linux AAr
 ./sifter.py --arch aarch64 --unk --dis --sync --tick --no-gui -j 8
 ```
 
-Options **not** supported for `--arch aarch64`: `--random`, `--targeted`, and extension filtering flags (they are rejected or ignored). `--ptrace` is Linux-only.
+Options **not** supported for `--arch aarch64`: `--random` and extension filtering flags (they are rejected or ignored). `--ptrace` is Linux-only.
 
 ## Signal semantics (Linux)
 

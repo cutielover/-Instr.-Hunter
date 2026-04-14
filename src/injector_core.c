@@ -176,7 +176,6 @@ void print_usage(void)
     printf("Usage: injector [OPTIONS]\n");
     printf("  -E, --exhaustive     Exhaustive search mode (default)\n");
     printf("  -r, --random         Random sampling mode\n");
-    printf("  -t, --targeted       Targeted opcode-group search mode\n");
     printf("  -p, --ptrace         Use ptrace single-step execution method\n");
     printf("  -R, --raw            Raw binary output\n");
     printf("  -T, --text           Text output (default for human)\n");
@@ -211,7 +210,6 @@ void init_config(int argc, char** argv)
     static struct option long_options[] = {
         { "exhaustive", no_argument, 0, 'E' },
         { "random", no_argument, 0, 'r' },
-        { "targeted", no_argument, 0, 't' },
         { "ptrace", no_argument, 0, 'p' },
         { "raw", no_argument, 0, 'R' },
         { "text", no_argument, 0, 'T' },
@@ -233,7 +231,7 @@ void init_config(int argc, char** argv)
         { 0, 0, 0, 0 }
     };
 
-    while ((opt = getopt_long(argc, argv, "ErtpRTcCFxs:b:e:j:a:h",
+    while ((opt = getopt_long(argc, argv, "ErpRTcCFxs:b:e:j:a:h",
                 long_options, NULL))
         != -1) {
         switch (opt) {
@@ -242,9 +240,6 @@ void init_config(int argc, char** argv)
             break;
         case 'r':
             config.mode = MODE_RANDOM;
-            break;
-        case 't':
-            config.mode = MODE_TARGETED;
             break;
         case 'p':
             config.exec_method = EXEC_PTRACE;

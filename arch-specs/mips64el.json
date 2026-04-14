@@ -1,0 +1,36 @@
+{
+  "arch": "mips",
+  "display_name": "MIPS64 (ptrace-only)",
+  "injector_binary": "injector_mips",
+  "capstone_arch_macro": "CS_ARCH_MIPS",
+  "capstone_mode_macro": "CS_MODE_MIPS64 | CS_MODE_LITTLE_ENDIAN",
+  "sentinel_insn": "0x0000000du",
+  "pc_field": "cp0_epc",
+  "gpr_field": "regs",
+  "gpr_count": 32,
+  "reg_struct": "struct mips_ptrace_regs",
+  "strict_ptrace_only": false,
+  "fixed_insn_size": 4,
+  "memcage": {
+    "enabled": true,
+    "register_sandbox": "mips_basic",
+    "success_signal": "SIGTRAP",
+    "manual_checks": [
+      "Implement MIPS register sandboxing (seed GPRs to trap-safe pointer) if memcage is used for large scans.",
+      "Verify BREAK sentinel semantics and si_addr behavior on native MIPS64 Linux.",
+      "Tune blacklist for privileged/cache/TLB-sensitive instructions on target silicon."
+    ]
+  },
+  "blacklist": [
+    {
+      "pattern": "0x0000000c",
+      "mask": "0xffffffff",
+      "reason": "syscall"
+    },
+    {
+      "pattern": "0x0000000d",
+      "mask": "0xffffffff",
+      "reason": "break"
+    }
+  ]
+}

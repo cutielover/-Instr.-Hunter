@@ -1,70 +1,26 @@
 {
-  "capstone_flags": "AArch64 default",
-  "command": "./sifter.py --arch aarch64 --unk --ptrace --dis --sync --tick -j 8",
-  "cs_mode": 0,
-  "disas_mismatch_raw": 221696,
-  "disas_mismatch_strict": 221696,
+  "capstone_flags": "MIPS64 little-endian",
+  "command": "./sifter.py --arch mips --unk --dis --no-gui -j 1 --random",
+  "cs_mode": 8,
   "filter_ext": false,
   "isa_extensions": [],
   "isa_string": "(unknown)",
-  "jobs": 8,
-  "mode": "exhaustive",
+  "jobs": 1,
+  "mode": "random",
   "no_compressed": false,
-  "runtime": "00:00:24",
+  "runtime": "00:00:14",
   "rwx": false,
   "search_dis": true,
   "search_unk": true,
-  "sifter_arch": "aarch64",
-  "started_at": "2026-04-06 08:58:16",
+  "sifter_arch": "mips",
+  "started_at": "2026-04-14 05:31:42",
   "strict_filter": false,
   "workers": [
     {
-      "command": "./injector_aarch64 -R -E -x -p -b 0 -e 1fffffff -s 1775465872 --worker-id 0 --cs-mode 0",
-      "crash_count": 0,
-      "last_encoding": 97663,
+      "command": "./injector_mips -R -r -s 1776144688 --worker-id 0 --cs-mode 8 -b 6b97712",
+      "crash_count": 55,
+      "last_encoding": 112817937,
       "worker_id": 0
-    },
-    {
-      "command": "./injector_aarch64 -R -E -x -p -b 20000000 -e 3fffffff -s 1775465873 --worker-id 1 --cs-mode 0",
-      "crash_count": 0,
-      "last_encoding": 536976063,
-      "worker_id": 1
-    },
-    {
-      "command": "./injector_aarch64 -R -E -x -p -b 40000000 -e 5fffffff -s 1775465874 --worker-id 2 --cs-mode 0",
-      "crash_count": 0,
-      "last_encoding": 1073846911,
-      "worker_id": 2
-    },
-    {
-      "command": "./injector_aarch64 -R -E -x -p -b 60000000 -e 7fffffff -s 1775465875 --worker-id 3 --cs-mode 0",
-      "crash_count": 0,
-      "last_encoding": 1610718207,
-      "worker_id": 3
-    },
-    {
-      "command": "./injector_aarch64 -R -E -x -p -b 80000000 -e 9fffffff -s 1775465876 --worker-id 4 --cs-mode 0",
-      "crash_count": 0,
-      "last_encoding": 2147589183,
-      "worker_id": 4
-    },
-    {
-      "command": "./injector_aarch64 -R -E -x -p -b a0000000 -e bfffffff -s 1775465877 --worker-id 5 --cs-mode 0",
-      "crash_count": 0,
-      "last_encoding": 2684447551,
-      "worker_id": 5
-    },
-    {
-      "command": "./injector_aarch64 -R -E -x -p -b c0000000 -e dfffffff -s 1775465878 --worker-id 6 --cs-mode 0",
-      "crash_count": 0,
-      "last_encoding": 3221324223,
-      "worker_id": 6
-    },
-    {
-      "command": "./injector_aarch64 -R -E -x -p -b e0000000 -e ffffffff -s 1775465879 --worker-id 7 --cs-mode 0",
-      "crash_count": 0,
-      "last_encoding": 3758189951,
-      "worker_id": 7
     }
   ]
 }

@@ -44,7 +44,6 @@
 typedef enum {
     MODE_EXHAUSTIVE,    /* Exhaustive enumeration */
     MODE_RANDOM,        /* Random sampling */
-    MODE_TARGETED,      /* Targeted opcode search */
 } search_mode_t;
 
 /* Execution methods */

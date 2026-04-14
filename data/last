@@ -1,1 +1,1 @@
-./sifter.py --arch aarch64 --unk --ptrace --dis --sync --tick -j 8
+./sifter.py --arch mips --unk --dis --no-gui -j 1 --random

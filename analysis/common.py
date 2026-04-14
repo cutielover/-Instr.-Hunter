@@ -15,7 +15,15 @@ from dataclasses import dataclass, field
 from typing import Dict, Iterable, List, Optional, Sequence, Set, Tuple
 
 try:
-    from capstone import Cs, CS_ARCH_RISCV, CS_MODE_RISCV64, CS_MODE_RISCV_C
+    from capstone import (
+        Cs,
+        CS_ARCH_RISCV,
+        CS_ARCH_MIPS,
+        CS_MODE_RISCV64,
+        CS_MODE_RISCV_C,
+        CS_MODE_MIPS64,
+        CS_MODE_LITTLE_ENDIAN,
+    )
     try:
         from capstone import CS_ARCH_ARM64 as CS_ARCH_A64
     except ImportError:
@@ -88,6 +96,7 @@ try:
     )
 
     ARM64_MODE_DEFAULT = 0
+    MIPS_MODE_DEFAULT = CS_MODE_MIPS64 | CS_MODE_LITTLE_ENDIAN
 
     CS_MODE_FLAG_NAMES = {
         CS_MODE_RISCV_C: "C",
@@ -111,7 +120,15 @@ try:
 
 except ImportError:
     try:
-        from capstone import Cs, CS_ARCH_RISCV, CS_MODE_RISCV64, CS_MODE_RISCVC
+        from capstone import (
+            Cs,
+            CS_ARCH_RISCV,
+            CS_ARCH_MIPS,
+            CS_MODE_RISCV64,
+            CS_MODE_RISCVC,
+            CS_MODE_MIPS64,
+            CS_MODE_LITTLE_ENDIAN,
+        )
         try:
             from capstone import CS_ARCH_ARM64 as CS_ARCH_A64
         except ImportError:
@@ -124,6 +141,7 @@ except ImportError:
         RISCV_MODE_ALL = CS_MODE_RISCV64 | CS_MODE_RISCVC
         CS_MODE_FLAG_NAMES = {}
         ARM64_MODE_DEFAULT = 0
+        MIPS_MODE_DEFAULT = CS_MODE_MIPS64 | CS_MODE_LITTLE_ENDIAN
     except ImportError:
         HAS_CAPSTONE = False
         CAPSTONE_V6 = False
@@ -133,6 +151,7 @@ except ImportError:
         CS_MODE_FLAG_NAMES = {}
         CS_ARCH_A64 = 0  # type: ignore[misc, assignment]
         ARM64_MODE_DEFAULT = 0
+        MIPS_MODE_DEFAULT = 0
 
 if HAS_CAPSTONE:
     try:
@@ -177,6 +196,7 @@ C_QUADRANT_MAP = {
 ARTIFACT_TYPES = ("H", "D", "X", "T")
 ARCH_RISCV = "riscv"
 ARCH_AARCH64 = "aarch64"
+ARCH_MIPS = "mips"
 
 
 def detect_isa_extensions_from_string(isa_string: str) -> Set[str]:
@@ -219,6 +239,8 @@ def capstone_mode_for_sifter_arch(arch: str, isa_exts: Iterable[str]) -> int:
     """Capstone cs_mode for the given sifter CPU architecture."""
     if arch == "aarch64":
         return ARM64_MODE_DEFAULT
+    if arch == "mips":
+        return MIPS_MODE_DEFAULT
     return build_capstone_mode(isa_exts)
 
 
@@ -226,6 +248,8 @@ def describe_capstone_mode(mode: int, sifter_arch: str = "riscv") -> str:
     """Return short string listing enabled Capstone extension flags."""
     if sifter_arch == "aarch64":
         return "AArch64 default" if mode == 0 else f"AArch64 cs_mode=0x{mode:x}"
+    if sifter_arch == "mips":
+        return "MIPS64 little-endian" if mode == MIPS_MODE_DEFAULT else f"MIPS cs_mode=0x{mode:x}"
     if not mode:
         return "(none)"
     names = [name for flag, name in CS_MODE_FLAG_NAMES.items() if mode & flag]
@@ -268,6 +292,10 @@ def categorize_instruction(encoding: int, arch: str = ARCH_RISCV) -> str:
         op0 = (encoding >> 29) & 0x7
         op1 = (encoding >> 25) & 0xF
         return f"A64 op0={op0} op1=0x{op1:x} top6=0x{top6:02x}"
+    if arch == ARCH_MIPS:
+        op = (encoding >> 26) & 0x3F
+        funct = encoding & 0x3F
+        return f"MIPS op=0x{op:02x} funct=0x{funct:02x}"
     if is_compressed(encoding):
         quadrant = encoding & 0x3
         funct3 = (encoding >> 13) & 0x7
@@ -280,6 +308,8 @@ def identify_probable_extension(encoding: int, arch: str = ARCH_RISCV) -> Option
     """Best-effort extension guess reused by offline analysis."""
     if arch == ARCH_AARCH64:
         return "A64"
+    if arch == ARCH_MIPS:
+        return "MIPS"
     if is_compressed(encoding):
         c = encoding & 0xFFFF
         q = c & 0x3
@@ -437,13 +467,17 @@ class SifterDisassembler:
         self.arch = arch
         self.md = None
         self.mode = mode if mode is not None else (
-            ARM64_MODE_DEFAULT if arch == ARCH_AARCH64 else RISCV_MODE_ALL
+            ARM64_MODE_DEFAULT if arch == ARCH_AARCH64 else
+            MIPS_MODE_DEFAULT if arch == ARCH_MIPS else
+            RISCV_MODE_ALL
         )
         if not HAS_CAPSTONE:
             return
         try:
             if arch == ARCH_AARCH64:
                 self.md = Cs(CS_ARCH_A64, self.mode)
+            elif arch == ARCH_MIPS:
+                self.md = Cs(CS_ARCH_MIPS, self.mode)
             else:
                 rv = RiscvDisassembler(mode=self.mode)
                 self.md = rv.md
@@ -455,6 +489,8 @@ class SifterDisassembler:
         if not self.md:
             return ("(no disas)", "")
         if self.arch == ARCH_AARCH64:
+            size = 4
+        elif self.arch == ARCH_MIPS:
             size = 4
         elif is_compressed(encoding):
             size = 2

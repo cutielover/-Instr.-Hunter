@@ -1,0 +1,41 @@
+# Dockerfile for running MIPS64 Sifter in linux/mips64le container
+#
+# Build:
+#   docker build --platform linux/mips64le -f Dockerfile.mips64 -t mips64-sifter .
+#
+# Run:
+#   docker run --rm -it mips64-sifter
+
+FROM --platform=linux/mips64le debian:bookworm
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    build-essential \
+    cmake \
+    git \
+    python3 \
+    python3-pip \
+    && rm -rf /var/lib/apt/lists/*
+
+# Build and install Capstone 6 from source for C + Python parity.
+RUN git clone --depth 1 --branch next https://github.com/capstone-engine/capstone.git /tmp/capstone && \
+    cd /tmp/capstone && \
+    cmake -B build -DCMAKE_INSTALL_PREFIX=/usr -DCAPSTONE_ARCHITECTURE_DEFAULT=ON && \
+    cmake --build build -j"$(nproc)" && \
+    cmake --install build && \
+    ldconfig && \
+    cd bindings/python && pip3 install --break-system-packages --no-cache-dir . && \
+    rm -rf /tmp/capstone
+
+RUN pip3 install --break-system-packages --no-cache-dir --upgrade pip setuptools
+
+WORKDIR /app
+COPY . /app/
+
+# Build generated MIPS injector.
+RUN make clean && make injector_mips CC_MIPS=gcc
+
+RUN mkdir -p /app/data /app/results
+
+# Default: mips scan in headless mode (memcage baseline).
+CMD ["./sifter.py", "--arch", "mips", "--unk", "--dis", "--sync", "--tick", "--no-gui", "-j", "1", "--random"]

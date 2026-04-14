@@ -33,54 +33,6 @@ static cs_insn* cs_insn_ptr;
 extern config_t config;
 extern state_t state;
 
-/* ── Targeted-mode iterator state ──────────────────────────────────────── */
-
-/* 32-bit opcode values that have defined instruction groups (bits[6:0]) */
-static const uint8_t rv32_opcodes[] = {
-    0x37,
-    /* LUI      */ 0x17,
-    /* AUIPC    */ 0x6F, /* JAL      */
-    0x67,
-    /* JALR     */ 0x63,
-    /* BRANCH   */ 0x03, /* LOAD     */
-    0x23,
-    /* STORE    */ 0x13,
-    /* OP-IMM   */ 0x33, /* OP       */
-    0x0F,
-    /* MISC-MEM */ 0x73,
-    /* SYSTEM   */ 0x1B, /* OP-IMM-32*/
-    0x3B,
-    /* OP-32    */ 0x07,
-    /* LOAD-FP  */ 0x27, /* STORE-FP */
-    0x43,
-    /* MADD     */ 0x47,
-    /* MSUB     */ 0x4B, /* NMSUB    */
-    0x4F,
-    /* NMADD    */ 0x53,
-    /* OP-FP    */ 0x57, /* OP-V     */
-    0x2F, /* AMO      */
-};
-#define NUM_RV32_OPCODES (sizeof(rv32_opcodes) / sizeof(rv32_opcodes[0]))
-
-/* Compressed-instruction quadrants: 0x00, 0x01, 0x02 (0x03 = 32-bit) */
-static const uint8_t c_quadrants[] = { 0x00, 0x01, 0x02 };
-#define NUM_C_QUADRANTS 3
-
-/*
- * Targeted-mode state: enumerate (opcode_group, funct3, sample) triples.
- * For each (opcode, funct3) pair we sample TARGETED_SAMPLES_PER_SLOT
- * random instruction encodings, varying only the "payload" bits
- * (rd, rs1, rs2, immediate, funct7).
- */
-#define TARGETED_SAMPLES_PER_SLOT 64
-
-static struct {
-    bool doing_compressed; /* false = 32-bit phase, true = 16-bit phase */
-    unsigned group_idx; /* index into rv32_opcodes[] or c_quadrants[] */
-    unsigned funct3; /* 0..7 */
-    unsigned sample; /* 0..TARGETED_SAMPLES_PER_SLOT-1 */
-} targeted;
-
 /* Memory management */
 static void* guard_region = NULL; /* Base of the guard region */
 static void* packet_bufs[2]; /* Double-buffered test pages */
@@ -809,49 +761,32 @@ bool arch_move_next_instruction(void)
 
     if (!config.range.started) {
         config.range.started = true;
-
-        if (config.mode == MODE_TARGETED) {
-            /* Targeted mode uses its own iterator from the start */
-            memset(&targeted, 0, sizeof(targeted));
-        } else {
-            /* First instruction for exhaustive / random modes */
-            next = config.range.start;
-
-            /*
-             * In exhaustive no-compressed mode we only enumerate encodings
-             * with bits [1:0] == 0b11, so the first candidate must be aligned
-             * to the first such encoding within this shard.
-             */
-            if (config.mode == MODE_EXHAUSTIVE && !config.scan_compressed) {
-                next |= 0x3;
-            }
-
-            while (next <= config.range.end && is_blacklisted(next)) {
-                if (config.mode == MODE_EXHAUSTIVE && !config.scan_compressed) {
-                    if ((uint64_t)next + 4 > UINT32_MAX) {
-                        return false;
-                    }
-                    next += 4;
-                } else {
-                    if (next == UINT32_MAX) {
-                        return false;
-                    }
-                    next++;
-                }
-            }
-
-            if (next > config.range.end) {
-                return false;
-            }
-
-            state.current.encoding = next;
-            state.current.size = get_instruction_size(state.current.encoding);
-            return true;
+        next = config.range.start;
+        if (config.mode == MODE_EXHAUSTIVE && !config.scan_compressed) {
+            next |= 0x3;
         }
+        while (next <= config.range.end && is_blacklisted(next)) {
+            if (config.mode == MODE_EXHAUSTIVE && !config.scan_compressed) {
+                if ((uint64_t)next + 4 > UINT32_MAX) {
+                    return false;
+                }
+                next += 4;
+            } else {
+                if (next == UINT32_MAX) {
+                    return false;
+                }
+                next++;
+            }
+        }
+        if (next > config.range.end) {
+            return false;
+        }
+        state.current.encoding = next;
+        state.current.size = get_instruction_size(state.current.encoding);
+        return true;
     }
 
-    switch (config.mode) {
-    case MODE_EXHAUSTIVE:
+    if (config.mode == MODE_EXHAUSTIVE) {
         /* Simple increment */
         if (state.current.encoding >= config.range.end) {
             return false;
@@ -887,9 +822,7 @@ bool arch_move_next_instruction(void)
 
         state.current.encoding = next;
         state.current.size = get_instruction_size(next);
-        break;
-
-    case MODE_RANDOM:
+    } else if (config.mode == MODE_RANDOM) {
         /* Random sampling */
         next = (insn_t)rand();
         if (!config.scan_compressed) {
@@ -902,77 +835,9 @@ bool arch_move_next_instruction(void)
 
         state.current.encoding = next;
         state.current.size = get_instruction_size(next);
-        break;
-
-    case MODE_TARGETED:
-        /*
-         * Iterate over every (opcode-group, funct3) slot and take
-         * TARGETED_SAMPLES_PER_SLOT random samples within each slot.
-         *
-         * 32-bit: encoding = rand_payload | (funct3 << 12) | opcode
-         * 16-bit: encoding = rand_payload | (funct3 << 13) | quadrant
-         */
-        targeted.sample++;
-
-        if (targeted.sample >= TARGETED_SAMPLES_PER_SLOT) {
-            targeted.sample = 0;
-            targeted.funct3++;
-        }
-        if (targeted.funct3 >= 8) {
-            targeted.funct3 = 0;
-            targeted.group_idx++;
-        }
-
-        if (!targeted.doing_compressed) {
-            /* ── 32-bit phase ── */
-            if (targeted.group_idx >= NUM_RV32_OPCODES) {
-                if (config.scan_compressed) {
-                    /* move on to compressed phase */
-                    targeted.doing_compressed = true;
-                    targeted.group_idx = 0;
-                    targeted.funct3 = 0;
-                    targeted.sample = 0;
-                } else {
-                    return false; /* done */
-                }
-            }
-        }
-
-        if (targeted.doing_compressed) {
-            /* ── 16-bit phase ── */
-            if (targeted.group_idx >= NUM_C_QUADRANTS)
-                return false; /* done */
-
-            uint8_t quad = c_quadrants[targeted.group_idx];
-            /* Variable bits [12:2] (11 bits) — everything except funct3 and quadrant */
-            uint16_t payload = ((uint16_t)rand() & 0x7FF) << 2;
-            uint16_t enc16 = (uint16_t)((targeted.funct3 << 13) | payload | quad);
-            next = (insn_t)enc16;
-        } else {
-            /*
-             * 32-bit encoding layout:
-             *   [31:25] funct7 | [24:20] rs2 | [19:15] rs1 |
-             *   [14:12] funct3 | [11:7]  rd  | [6:0]  opcode
-             *
-             * We fix opcode and funct3, randomise everything else.
-             */
-            uint8_t opc = rv32_opcodes[targeted.group_idx];
-            uint32_t r = (uint32_t)rand();
-            uint32_t funct7 = (r & 0x7F) << 25;
-            uint32_t rs2 = ((r >> 7) & 0x1F) << 20;
-            uint32_t rs1 = ((r >> 12) & 0x1F) << 15;
-            uint32_t rd = ((r >> 17) & 0x1F) << 7;
-            next = funct7 | rs2 | rs1
-                | ((uint32_t)targeted.funct3 << 12)
-                | rd | opc;
-        }
-
-        if (is_blacklisted(next))
-            return arch_move_next_instruction();
-
-        state.current.encoding = next;
-        state.current.size = get_instruction_size(next);
-        break;
+    } else {
+        /* Only MODE_EXHAUSTIVE and MODE_RANDOM are valid now. */
+        return false;
     }
 
     return true;

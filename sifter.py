@@ -31,6 +31,7 @@ from analysis.common import (
     ARM64_MODE_DEFAULT,
     CAPSTONE_V6,
     HAS_CAPSTONE,
+    MIPS_MODE_DEFAULT,
     RISCV_MODE_ALL,
     capstone_mode_for_sifter_arch,
     describe_capstone_mode,
@@ -38,7 +39,7 @@ from analysis.common import (
 )
 
 if HAS_CAPSTONE:
-    from capstone import Cs, CS_ARCH_RISCV
+    from capstone import Cs, CS_ARCH_RISCV, CS_ARCH_MIPS
     try:
         from capstone import CS_ARCH_ARM64 as _CS_ARCH_A64
     except ImportError:
@@ -46,10 +47,12 @@ if HAS_CAPSTONE:
 
 ARCH_RISCV = "riscv"
 ARCH_AARCH64 = "aarch64"
+ARCH_MIPS = "mips"
 
 # Paths
 INJECTOR_RISCV = "./injector"
 INJECTOR_AARCH64 = "./injector_aarch64"
+INJECTOR_MIPS = "./injector_mips"
 OUTPUT_DIR = "./data/"
 LOG_FILE = OUTPUT_DIR + "log"
 SYNC_FILE = OUTPUT_DIR + "sync"
@@ -159,7 +162,6 @@ class Settings:
     """Injector settings"""
     MODE_EXHAUSTIVE = 'E'
     MODE_RANDOM = 'r'
-    MODE_TARGETED = 't'
     
     def __init__(self, args, arch=ARCH_RISCV):
         self.arch = arch
@@ -175,8 +177,6 @@ class Settings:
             self.mode = self.MODE_EXHAUSTIVE
         elif '-r' in args or '--random' in args:
             self.mode = self.MODE_RANDOM
-        elif '-t' in args or '--targeted' in args:
-            self.mode = self.MODE_TARGETED
 
         i = 0
         while i < len(args):
@@ -201,7 +201,6 @@ def describe_mode(mode):
     return {
         Settings.MODE_EXHAUSTIVE: 'exhaustive',
         Settings.MODE_RANDOM: 'random',
-        Settings.MODE_TARGETED: 'targeted',
     }.get(mode, 'unknown')
 
 
@@ -235,13 +234,15 @@ class Tests:
 
 
 class Disassembler:
-    """Capstone-backed disassembler for RISC-V or AArch64."""
+    """Capstone-backed disassembler for RISC-V, AArch64, or MIPS."""
     def __init__(self, arch=ARCH_RISCV, mode=None):
         self.arch = arch
         self.md = None
         if HAS_CAPSTONE:
             if arch == ARCH_AARCH64:
                 self.md = Cs(_CS_ARCH_A64, mode if mode is not None else ARM64_MODE_DEFAULT)
+            elif arch == ARCH_MIPS:
+                self.md = Cs(CS_ARCH_MIPS, mode if mode is not None else MIPS_MODE_DEFAULT)
             else:
                 self.md = Cs(CS_ARCH_RISCV, mode if mode is not None else RISCV_MODE_ALL)
             
@@ -250,6 +251,8 @@ class Disassembler:
             return ("(no disas)", "", 0)
 
         if self.arch == ARCH_AARCH64:
+            size = 4
+        elif self.arch == ARCH_MIPS:
             size = 4
         elif size is None:
             size = 2 if (encoding & 0x3) != 0x3 else 4
@@ -274,7 +277,9 @@ class Injector:
         self.cs_mode = cs_mode
         arch = getattr(settings, 'arch', ARCH_RISCV)
         self.injector_path = injector_path or (
-            INJECTOR_AARCH64 if arch == ARCH_AARCH64 else INJECTOR_RISCV)
+            INJECTOR_AARCH64 if arch == ARCH_AARCH64 else
+            INJECTOR_MIPS if arch == ARCH_MIPS else
+            INJECTOR_RISCV)
         self.process = None
         self.command = None
         self.last_encoding = None
@@ -428,7 +433,11 @@ class Poll:
         if self.sync:
             os.makedirs(OUTPUT_DIR, exist_ok=True)
             with open(SYNC_FILE, 'w') as f:
-                title = "AArch64 Sifter Results" if arch == ARCH_AARCH64 else "RISC-V Sifter Results"
+                title = (
+                    "AArch64 Sifter Results" if arch == ARCH_AARCH64 else
+                    "MIPS Sifter Results" if arch == ARCH_MIPS else
+                    "RISC-V Sifter Results"
+                )
                 f.write(f"# {title}\n")
                 f.write(f"# Workers: {len(self.injectors)}\n")
                 f.write(f"# Started: {time.strftime('%Y-%m-%d %H:%M:%S')}\n")
@@ -593,7 +602,7 @@ class Poll:
                         not disas_valid
 
                     if is_hidden:
-                        if self.arch != ARCH_AARCH64 and _is_hint(result.encoding):
+                        if self.arch == ARCH_RISCV and _is_hint(result.encoding):
                             continue
                         if do_filter:
                             ext = _identify_ext(result.encoding)
@@ -911,6 +920,7 @@ class Gui:
             
             # Title
             title = ("═══ AArch64 Sifter ═══" if self.arch == ARCH_AARCH64
+                     else "═══ MIPS Sifter ═══" if self.arch == ARCH_MIPS
                      else "═══ RISC-V Sifter ═══")
             self.stdscr.addstr(0, max(0, (maxx - len(title)) // 2), 
                               title, curses.color_pair(self.GREEN) | curses.A_BOLD)
@@ -1127,7 +1137,9 @@ def dump_results(tests, injectors, command_line, isa_string, cs_mode, settings):
     disas = Disassembler(arch=s_arch, mode=cs_mode)
 
     with open(LOG_FILE, 'w') as f:
-        hdr = "AArch64 Sifter Results" if s_arch == ARCH_AARCH64 else "RISC-V Sifter Results"
+        hdr = ("AArch64 Sifter Results" if s_arch == ARCH_AARCH64
+               else "MIPS Sifter Results" if s_arch == ARCH_MIPS
+               else "RISC-V Sifter Results")
         f.write(f"# {hdr}\n")
         f.write(f"# Command: {command_line}\n")
         f.write(f"# Architecture: {s_arch}\n")
@@ -1189,7 +1201,7 @@ def main():
     command_line = ' '.join(sys.argv)
 
     parser = argparse.ArgumentParser(
-        description='ISA Sifter — hidden instruction analyzer (RISC-V / AArch64)',
+        description='ISA Sifter — hidden instruction analyzer (RISC-V / AArch64 / MIPS)',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
@@ -1198,11 +1210,12 @@ Examples:
   %(prog)s --unk --no-compressed -b 0x00000000 -e 0x10000000
   %(prog)s --unk -j 4 --random
   %(prog)s --arch aarch64 --unk --dis --no-gui -j 8
+  %(prog)s --arch mips --unk --dis --no-gui -j 1 --random
         """
     )
 
-    parser.add_argument('--arch', choices=(ARCH_RISCV, ARCH_AARCH64), default=ARCH_RISCV,
-                       help='Target architecture: riscv (default) or aarch64 (Linux AArch64 injector)')
+    parser.add_argument('--arch', choices=(ARCH_RISCV, ARCH_AARCH64, ARCH_MIPS), default=ARCH_RISCV,
+                       help='Target architecture: riscv (default), aarch64, or mips')
 
     parser.add_argument('--unk', action='store_true',
                        help='Search for unknown/hidden instructions')
@@ -1221,8 +1234,6 @@ Examples:
                             help='Exhaustive enumeration mode (default)')
     mode_group.add_argument('--random', action='store_true',
                             help='Random sampling mode')
-    mode_group.add_argument('--targeted', action='store_true',
-                            help='Targeted opcode-group search mode')
     parser.add_argument('--filter-ext', action='store_true',
                        help='Filter out hidden instructions from known extensions')
     parser.add_argument('--strict-filter', action='store_true',
@@ -1253,10 +1264,13 @@ Examples:
     args = parser.parse_args()
 
     if args.arch == ARCH_AARCH64:
-        if args.random or args.targeted:
-            parser.error('--arch aarch64 only supports exhaustive search (omit --random / --targeted)')
+        if args.random:
+            parser.error('--arch aarch64 only supports exhaustive search (omit --random)')
         if args.filter_ext or args.strict_filter:
             print("Note: --filter-ext / --strict-filter are ignored for AArch64 scans.")
+    elif args.arch == ARCH_MIPS:
+        if args.filter_ext or args.strict_filter:
+            print("Note: --filter-ext / --strict-filter are ignored for MIPS scans.")
 
     if not args.unk and not args.dis:
         print("Warning: no search type (--unk, --dis) specified, "
@@ -1266,8 +1280,6 @@ Examples:
     base_injector_args = []
     if args.random:
         base_injector_args.append('-r')
-    elif args.targeted:
-        base_injector_args.append('-t')
     else:
         base_injector_args.append('-E')
     if args.tick:
@@ -1305,8 +1317,6 @@ Examples:
     # Determine mode letter for Settings
     if args.random:
         mode_letter = Settings.MODE_RANDOM
-    elif args.targeted:
-        mode_letter = Settings.MODE_TARGETED
     else:
         mode_letter = Settings.MODE_EXHAUSTIVE
 

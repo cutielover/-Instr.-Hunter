@@ -19,8 +19,8 @@ RISC-V Sifter 用来回答下面几类问题：
 
 - `sifter.py`
   Python 前端，负责 CLI、ISA 检测、Capstone mode 选择、worker 调度、结果汇聚、同步写盘和 curses GUI。
-- `injector` / `injector_aarch64`
-  C 端执行器：共享 [src/injector_core.c](src/injector_core.c) 与架构后端（[src/arch_riscv.c](src/arch_riscv.c) 或 [src/arch_aarch64.c](src/arch_aarch64.c)），负责构造测试页、注入指令、捕获信号、调用 Capstone，并以 text 或 raw 协议输出结果。
+- `injector` / `injector_aarch64` / `injector_mips`
+  C 端执行器：共享 [src/injector_core.c](src/injector_core.c) 与架构后端（[src/arch_riscv.c](src/arch_riscv.c)、[src/arch_aarch64.c](src/arch_aarch64.c)、[src/arch_mips.c](src/arch_mips.c)），负责构造测试页、注入指令、捕获信号、调用 Capstone，并以 text 或 raw 协议输出结果。
 
 整体流程如下：
 
@@ -52,8 +52,17 @@ sifter.py
 ### `src/injector_core.c` 与架构后端
 
 - **共享核心**（`injector_core.c`）：CLI 解析、多进程分片、缓冲输出、`main` 循环。
-- **RISC-V**（`arch_riscv.c` + `handler_trampoline.S`）：`ebreak` 哨兵、寄存器沙箱、exhaustive/random/targeted、可选 `ptrace`（`ptrace_runner.c`）。
+- **RISC-V**（`arch_riscv.c` + `handler_trampoline.S`）：`ebreak` 哨兵、寄存器沙箱、exhaustive/random、可选 `ptrace`（`ptrace_runner.c`）。
 - **AArch64 Linux**（`arch_aarch64.c` + `handler_trampoline_aarch64.S`）：`BRK` 哨兵、全空间 **+1** exhaustive；支持 Linux `ptrace` 单步模式（共享 `ptrace_runner.c` + AArch64 backend）。
+- **MIPS64 Linux（首版）**（`arch_mips.c`）：由生成器产出的 **ptrace + memcage 基础后端**，作为配置驱动生成框架的首个验证目标。
+
+MIPS 后端由配置文件 + 生成器得到：`arch-specs/mips64el.json` → `tools/generate_arch_backend.py` → `src/arch_mips.c`。
+
+重新生成命令：
+
+```bash
+python3 tools/generate_arch_backend.py arch-specs/mips64el.json src/arch_mips.c
+```
 
 详见 [docs/AARCH64_LINUX.md](docs/AARCH64_LINUX.md)。
 
@@ -75,15 +84,12 @@ sifter.py
 
 ## 扫描模式
 
-`injector` 当前支持三种搜索模式：
+`injector` 当前支持两种搜索模式：
 
 - `exhaustive`
   穷举遍历编码空间。默认模式。
 - `random`
   随机采样编码。
-- `targeted`
-  按 opcode 组和 `funct3` 槽位做定向抽样。
-
 在 `sifter.py` 中：
 
 - `-j 1` 或非 exhaustive 模式下，使用单个 `injector`
@@ -229,6 +235,24 @@ Python 侧由 `RawResult` 解析这些帧，再完成分类、统计和落盘。
 ```
 
 完整空间约 2³² 条编码，耗时极长；可用 `-b`/`-e` 分片。说明见 [docs/AARCH64_LINUX.md](docs/AARCH64_LINUX.md)。
+
+### Linux MIPS64 扫描
+
+MIPS 后端当前支持生成器产出的 memcage 基础实现，也可用 ptrace：
+
+```bash
+./sifter.py --arch mips --unk --dis --no-gui --random
+# 或
+./sifter.py --arch mips --ptrace --unk --dis --no-gui --random
+```
+
+在 macOS 上可用：
+
+```bash
+./scripts/macos-docker-run-mips64.sh quick
+```
+
+注意：在 `linux/mips64le` 的 qemu-user 容器中，`ptrace(PTRACE_TRACEME)` 可能返回 `Function not implemented`。该限制只影响 ptrace 路径；memcage 路径不依赖 ptrace。
 
 ## 结果文件
 
