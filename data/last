@@ -1,1 +1,0 @@
-./sifter.py --arch mips --unk --dis --no-gui -j 1 --random

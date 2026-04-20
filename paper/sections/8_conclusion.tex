@@ -1,0 +1,7 @@
+\chapter{总结与展望}
+
+本文围绕“如何在用户态环境中对多 ISA 处理器做可扩展、可复现、可审计的隐藏指令差异分析”这一问题，设计并实现了一套统一框架。该框架以单条可控执行为核心，用共享执行核心和架构后端分离公共逻辑与 ISA 差异，在同一系统中组织了 \memcage\ 与 \ptracebackend\ 两类互补后端，并增加了面向新 ISA 的配置驱动生成链路。
+
+在当前已经完成的工作中，Layer A 结果支持主循环稳定性、部分 controlled path 和 AArch64 对齐子集上的吞吐对比；Layer C 结果支持 MIPS64 生成器案例的可运行性与 bring-up 成本量化。与此同时，本文也明确保留了当前证据尚不支持的主张：真实硬件可复现性、Layer A/Layer B 差异归因，以及完整闭环的分类输出能力。
+
+后续工作将沿三个方向继续推进。第一，完成至少一台 RISC-V 板卡上的 bounded campaign，补齐 Layer B 的直接证据。第二，围绕 illegal-at-test 和 known-disassembly exec-fault 两类路径补齐日志 taxonomy。第三，把当前生成器推广到更多 ISA，并探索与 authoritative semantics 或合规测试框架的结合方式。完成这些工作后，本文将能够从“Layer A + Layer C 为主体的初稿”自然过渡到更完整的学位论文定稿。

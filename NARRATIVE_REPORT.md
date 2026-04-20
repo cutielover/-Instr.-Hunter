@@ -12,7 +12,7 @@
 | 工作标题 | 一种微处理器隐藏指令分析工具的设计与实现 |
 | 代码仓库 | riscv-sifter（本目录） |
 | 参考论文 | iScanU: A Portable Scanner for Undocumented Instructions on RISC Processors |
-| 文档版本 | 0.2 完整方案对齐 |
+| 文档版本 | 0.3 完整方案 + 生成器落地 |
 | 最后更新 | 由作者在定稿前填写 |
 
 ---
@@ -41,8 +41,9 @@
 - [x] AArch64 Linux：memcage + 跳板 + ptrace ops  
 - [x] Python：`sifter.py`、raw 协议、多 worker、`summarize.py`  
 - [ ] **实机实验**：RISC-V 板卡 / AArch64 设备 [TBD 型号]  
-- [ ] **配置 + 代码生成工具**（模板化）[TBD 路径与版本]  
-- [ ] **MIPS**（或其它第三 ISA）后端 [TBD]  
+- [x] **配置 + 代码生成工具**（模板化）`tools/generate_arch_backend.py`  
+- [x] **MIPS**（第三 ISA 首版）`arch-specs/mips64el.json` → `src/arch_mips.c`  
+- [ ] MIPS memcage ISA 特化 hardening（见 `src/arch_mips.c.MEMCAGE_TODO.md`）  
 - [ ] x86：相关工作讨论，**不强制实现**
 
 **关键文件索引**
@@ -52,6 +53,9 @@
 | 分类与使用 | `README.md` |
 | memcage | `docs/memcage.md` |
 | AArch64 | `docs/AARCH64_LINUX.md` |
+| 生成器 | `tools/generate_arch_backend.py` |
+| MIPS 规格 | `arch-specs/mips64el.json` |
+| MIPS 后端与 TODO | `src/arch_mips.c` / `src/arch_mips.c.MEMCAGE_TODO.md` |
 | 评估矩阵 | `docs/EVALUATION_MATRIX.md` |
 | 论文目录 | `docs/PAPER_OUTLINE_zh.md` |
 
@@ -65,7 +69,7 @@
 |------|-----|
 | 目的 | 吞吐、memcage vs ptrace、管线正确性、可复现开发基线 |
 | 复现 | `docs/EVALUATION_MATRIX.md` §4 |
-| 结果占位 | [TBD] |
+| 当前证据 | 已有 MIPS quick 记录（`data/log`：`Tested` 非零，示例一次约 `22000`） |
 
 ### 4.2 层 B：实机 RISC-V（论文主证据）
 
@@ -87,9 +91,10 @@
 
 | 项目 | 值 |
 |------|-----|
-| 配置输入 | [TBD] 文件路径 |
-| 生成物 | [TBD] 列表 |
-| 首跑成功记录 | [TBD] 日志、耗时或 LOC |
+| 配置输入 | `arch-specs/mips64el.json` |
+| 生成物 | `src/arch_mips.c` + `src/arch_mips.c.MEMCAGE_TODO.md` |
+| 首跑成功记录 | `scripts/macos-docker-run-mips64.sh quick`，产出 `data/log` |
+| 边界 | qemu-user 下 MIPS ptrace 可能不可用；容器优先 memcage，ptrace 对照放实机 |
 
 ### 4.5 层 A vs 层 B 对照子集
 
@@ -103,13 +108,13 @@
 
 | Claim ID | 陈述 | 证据 § | 状态 |
 |----------|------|--------|------|
-| C1 | 层 A 下主循环稳定 | 4.1 | pending |
+| C1 | 层 A 下主循环稳定 | 4.1 | in_progress |
 | C2 | memcage 吞吐高于 ptrace | 4.1 | pending |
-| C3 | 分类符合设计 | 4.1 + 样例 | pending |
+| C3 | 分类符合设计 | 4.1 + 样例 | in_progress |
 | C4 | 受控注入有效 | 4.1 | pending |
 | **C5** | **实机扫描完成且可复现** | **4.2 / 4.3** | **required** |
 | **C6** | **实机与仿真可对照** | **4.5** | **required** |
-| **C7** | **配置+生成接入新 ISA** | **4.4** | 按题目要求 |
+| **C7** | **配置+生成接入新 ISA** | **4.4** | partially_supported（mips64el 首版） |
 
 ---
 

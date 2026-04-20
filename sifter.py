@@ -23,7 +23,7 @@ import argparse
 import curses
 import json
 from struct import unpack
-from collections import deque
+from collections import Counter, deque
 from binascii import hexlify
 import copy
 
@@ -127,7 +127,9 @@ class WorkerStats:
         self.worker_id = worker_id
         self.result = RawResult()
         self.insn_count = 0
+        self.raw_hidden_count = 0
         self.hidden_count = 0
+        self.filtered_hidden_count = 0
         self.disas_bug_count = 0
         self.disas_mismatch_raw_count = 0
         self.disas_mismatch_strict_count = 0
@@ -217,7 +219,10 @@ class Tests:
         self.worker_stats = {}
         self.insn_count = 0
         self.artifact_count = 0
+        self.raw_hidden_count = 0
         self.hidden_count = 0
+        self.filtered_hidden_count = 0
+        self.filtered_hidden_ext_counts = Counter()
         self.disas_bug_count = 0
         self.disas_mismatch_raw_count = 0
         self.disas_mismatch_strict_count = 0
@@ -566,7 +571,10 @@ class Poll:
                 last_progress = time.monotonic()
 
                 local_insn = 0
+                local_raw_hidden = 0
                 local_hidden = 0
+                local_filtered_hidden = 0
+                local_filtered_hidden_ext = Counter()
                 local_disas_bug = 0
                 local_disas_raw = 0
                 local_disas_strict = 0
@@ -604,9 +612,14 @@ class Poll:
                     if is_hidden:
                         if self.arch == ARCH_RISCV and _is_hint(result.encoding):
                             continue
+                        local_raw_hidden += 1
+                        worker.raw_hidden_count += 1
                         if do_filter:
                             ext = _identify_ext(result.encoding)
                             if ext and _ext_enabled(ext):
+                                local_filtered_hidden += 1
+                                worker.filtered_hidden_count += 1
+                                local_filtered_hidden_ext[ext] += 1
                                 continue
                         if search_unk:
                             local_hidden += 1
@@ -640,7 +653,10 @@ class Poll:
                 if local_insn > 0 or artifacts:
                     with self.lock:
                         self.tests.insn_count += local_insn
+                        self.tests.raw_hidden_count += local_raw_hidden
                         self.tests.hidden_count += local_hidden
+                        self.tests.filtered_hidden_count += local_filtered_hidden
+                        self.tests.filtered_hidden_ext_counts.update(local_filtered_hidden_ext)
                         self.tests.disas_bug_count += local_disas_bug
                         self.tests.disas_mismatch_raw_count += local_disas_raw
                         self.tests.disas_mismatch_strict_count += local_disas_strict
@@ -961,8 +977,26 @@ class Gui:
                               curses.color_pair(self.WHITE))
             
             y += 1
-            self.stdscr.addstr(y, 4, f"Hidden:      {self.tests.hidden_count:,}", 
+            hidden_label = "Hidden:      "
+            self.stdscr.addstr(y, 4, f"{hidden_label}{self.tests.hidden_count:,}", 
                               curses.color_pair(self.RED))
+
+            if self.arch == ARCH_RISCV and (
+                self.tests.raw_hidden_count != self.tests.hidden_count or
+                ('-F' in self.settings.args or '--filter-ext' in self.settings.args)
+            ):
+                y += 1
+                self.stdscr.addstr(
+                    y, 4,
+                    f"Raw Hidden:  {self.tests.raw_hidden_count:,}",
+                    curses.color_pair(self.RED)
+                )
+                y += 1
+                self.stdscr.addstr(
+                    y, 4,
+                    f"Filtered H:  {self.tests.filtered_hidden_count:,}",
+                    curses.color_pair(self.BLUE)
+                )
             
             y += 1
             disas_label = "D(strict):   " if self.arch == ARCH_AARCH64 else "Disas Bugs:  "
@@ -1047,9 +1081,12 @@ class Gui:
                         disas_count = (worker.disas_mismatch_strict_count
                                        if self.arch == ARCH_AARCH64
                                        else worker.disas_bug_count)
+                        hidden_field = f"H{worker.hidden_count}"
+                        if self.arch == ARCH_RISCV and worker.raw_hidden_count != worker.hidden_count:
+                            hidden_field = f"H{worker.hidden_count}/R{worker.raw_hidden_count}"
                         line = (f"W{wid:02d}  0x{worker.result.encoding:08x}  "
                                 f"{worker.insn_count:,} tested  "
-                                f"H{worker.hidden_count} D{disas_count} "
+                                f"{hidden_field} D{disas_count} "
                                 f"T{worker.timeout_count} X{worker.exec_fault_count}")
                     self.stdscr.addstr(y, 4, line[:maxx - 8], curses.color_pair(self.WHITE))
             
@@ -1109,16 +1146,30 @@ def dump_run_metadata(tests, injectors, command_line, isa_string, isa_extensions
         "search_dis": '--dis' in command_line.split(),
         "started_at": time.strftime('%Y-%m-%d %H:%M:%S'),
         "runtime": tests.elapsed(),
+        "raw_hidden_count": tests.raw_hidden_count,
+        "hidden_count": tests.hidden_count,
+        "filtered_hidden_count": tests.filtered_hidden_count,
+        "hidden_filtered_out_count": tests.filtered_hidden_count,
         "workers": [
             {
                 "worker_id": inj.worker_id,
                 "command": inj.command,
                 "last_encoding": inj.last_encoding,
                 "crash_count": inj.crash_count,
+                "raw_hidden_count": tests.worker_stats.get(inj.worker_id).raw_hidden_count
+                    if inj.worker_id in tests.worker_stats else 0,
+                "hidden_count": tests.worker_stats.get(inj.worker_id).hidden_count
+                    if inj.worker_id in tests.worker_stats else 0,
+                "filtered_hidden_count": tests.worker_stats.get(inj.worker_id).filtered_hidden_count
+                    if inj.worker_id in tests.worker_stats else 0,
             }
             for inj in injectors
         ],
     }
+    if tests.filtered_hidden_ext_counts:
+        metadata["filtered_hidden_ext_counts"] = dict(
+            sorted(tests.filtered_hidden_ext_counts.items())
+        )
     if s_arch == ARCH_AARCH64:
         metadata["disas_mismatch_raw"] = tests.disas_mismatch_raw_count
         metadata["disas_mismatch_strict"] = tests.disas_mismatch_strict_count
@@ -1155,7 +1206,16 @@ def dump_results(tests, injectors, command_line, isa_string, cs_mode, settings):
             if inj.command:
                 f.write(f"# Injector W{inj.worker_id}: {inj.command}\n")
         f.write(f"# Tested: {tests.insn_count}\n")
+        if s_arch == ARCH_RISCV:
+            f.write(f"# Raw Hidden: {tests.raw_hidden_count}\n")
         f.write(f"# Hidden: {tests.hidden_count}\n")
+        if s_arch == ARCH_RISCV:
+            f.write(f"# Hidden Filtered Out: {tests.filtered_hidden_count}\n")
+            if tests.filtered_hidden_ext_counts:
+                ext_summary = ", ".join(
+                    f"{ext}={count}" for ext, count in sorted(tests.filtered_hidden_ext_counts.items())
+                )
+                f.write(f"# Hidden Filtered By Ext: {ext_summary}\n")
         f.write(f"# Disas Bugs: {tests.disas_bug_count}\n")
         if s_arch == ARCH_AARCH64:
             f.write(f"# Disas Mismatch Raw: {tests.disas_mismatch_raw_count}\n")

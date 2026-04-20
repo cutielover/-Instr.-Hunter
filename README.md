@@ -56,15 +56,29 @@ sifter.py
 - **AArch64 Linux**（`arch_aarch64.c` + `handler_trampoline_aarch64.S`）：`BRK` 哨兵、全空间 **+1** exhaustive；支持 Linux `ptrace` 单步模式（共享 `ptrace_runner.c` + AArch64 backend）。
 - **MIPS64 Linux（首版）**（`arch_mips.c`）：由生成器产出的 **ptrace + memcage 基础后端**，作为配置驱动生成框架的首个验证目标。
 
-MIPS 后端由配置文件 + 生成器得到：`arch-specs/mips64el.json` → `tools/generate_arch_backend.py` → `src/arch_mips.c`。
+### 自动生成器（新增）
 
-重新生成命令：
+项目提供了一个“配置驱动的后端生成器”，用于快速接入新 ISA：
+
+```text
+arch-specs/<arch>.json
+  -> tools/generate_arch_backend.py
+  -> src/arch_<arch>.c (+ MEMCAGE_TODO checklist)
+```
+
+当前已落地示例：`mips64el`
 
 ```bash
 python3 tools/generate_arch_backend.py arch-specs/mips64el.json src/arch_mips.c
 ```
 
-详见 [docs/AARCH64_LINUX.md](docs/AARCH64_LINUX.md)。
+生成后会额外产出：
+
+```bash
+src/arch_mips.c.MEMCAGE_TODO.md
+```
+
+用于记录 memcage 仍需人工加固的 ISA 特化点（寄存器沙箱、信号语义校准、黑名单收敛等）。
 
 ### `summarize.py`
 
@@ -302,8 +316,13 @@ riscv-sifter/
 ├── README.md
 ├── work.md
 ├── Makefile
+├── Dockerfile.mips64
 ├── sifter.py
 ├── summarize.py
+├── arch-specs/
+│   └── mips64el.json
+├── tools/
+│   └── generate_arch_backend.py
 ├── include/
 │   ├── injector.h
 │   └── arch.h
@@ -311,12 +330,16 @@ riscv-sifter/
 │   ├── injector_core.c
 │   ├── arch_riscv.c
 │   ├── arch_aarch64.c
+│   ├── arch_mips.c
 │   ├── ptrace_runner.c
 │   ├── ptrace_stub.c
 │   ├── handler_trampoline.S
-│   └── handler_trampoline_aarch64.S
+│   ├── handler_trampoline_aarch64.S
+│   └── arch_mips.c.MEMCAGE_TODO.md
 ├── scripts/
 │   ├── macos-docker-run.sh
+│   ├── macos-docker-run-aarch64.sh
+│   ├── macos-docker-run-mips64.sh
 │   ├── qemu-build.sh
 │   ├── qemu-scan.sh
 │   ├── qemu-analyze.sh

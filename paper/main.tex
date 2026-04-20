@@ -1,0 +1,72 @@
+\documentclass[UTF8,zihao=-4]{ctexrep}
+
+\usepackage[a4paper,margin=1in]{geometry}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{multirow}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{enumitem}
+\usepackage[numbers,sort&compress]{natbib}
+
+\hypersetup{
+  colorlinks=true,
+  linkcolor=blue!50!black,
+  citecolor=blue!50!black,
+  urlcolor=blue!50!black,
+  pdftitle={一种微处理器隐藏指令分析工具的设计与实现},
+  pdfauthor={作者待填}
+}
+
+\input{math_commands}
+
+\newcommand{\placeholderfigure}[3]{
+  \begin{figure}[t]
+    \centering
+    \fbox{\parbox[c][0.22\textheight][c]{0.82\textwidth}{\centering #2}}
+    \caption{#3}
+    \label{#1}
+  \end{figure}
+}
+
+\newcommand{\placeholdertable}[3]{
+  \begin{table}[t]
+    \centering
+    \caption{#2}
+    \label{#1}
+    \fbox{\parbox{0.82\textwidth}{\centering #3}}
+  \end{table}
+}
+
+\title{一种微处理器隐藏指令分析工具的设计与实现}
+\author{作者待填}
+\date{2026年4月}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+\input{sections/0_abstract}
+\end{abstract}
+
+\tableofcontents
+
+\input{sections/1_introduction}
+\input{sections/2_related_work}
+\input{sections/3_problem_definition}
+\input{sections/4_system_design}
+\input{sections/5_implementation}
+\input{sections/6_evaluation}
+\input{sections/7_discussion}
+\input{sections/8_conclusion}
+
+\bibliographystyle{plainnat}
+\bibliography{references}
+
+\appendix
+\input{sections/A_appendix}
+
+\end{document}

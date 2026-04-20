@@ -1,0 +1,10 @@
+results/
+data/
+*.sh
+docs/
+Dockerfile.*
+*.workspace
+examples/
+__pycache__/
+obj/
+scripts/

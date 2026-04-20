@@ -1,0 +1,36 @@
+\contentsline {chapter}{\numberline {第一章\hspace {.3em}}绪论}{3}{chapter.1}%
+\contentsline {chapter}{\numberline {第二章\hspace {.3em}}相关工作与技术基础}{5}{chapter.2}%
+\contentsline {paragraph}{隐藏指令发现与指令空间审计。}{5}{paragraph*.2}%
+\contentsline {paragraph}{RISC 用户态扫描与差异 triage。}{5}{paragraph*.3}%
+\contentsline {paragraph}{authoritative semantics、合规测试与 formal verification。}{5}{paragraph*.4}%
+\contentsline {paragraph}{执行环境与工具链基础设施。}{6}{paragraph*.5}%
+\contentsline {paragraph}{本文的位置。}{6}{paragraph*.6}%
+\contentsline {chapter}{\numberline {第三章\hspace {.3em}}问题定义与设计目标}{7}{chapter.3}%
+\contentsline {section}{\numberline {3.1}问题定义}{7}{section.3.1}%
+\contentsline {section}{\numberline {3.2}分类口径}{7}{section.3.2}%
+\contentsline {section}{\numberline {3.3}覆盖模型与边界}{8}{section.3.3}%
+\contentsline {section}{\numberline {3.4}设计目标}{8}{section.3.4}%
+\contentsline {chapter}{\numberline {第四章\hspace {.3em}}系统设计}{10}{chapter.4}%
+\contentsline {section}{\numberline {4.1}总体架构}{10}{section.4.1}%
+\contentsline {section}{\numberline {4.2}扫描主循环}{10}{section.4.2}%
+\contentsline {section}{\numberline {4.3}\texttt {memcage}\ 路径}{10}{section.4.3}%
+\contentsline {section}{\numberline {4.4}\texttt {ptrace}\ 路径}{11}{section.4.4}%
+\contentsline {section}{\numberline {4.5}配置驱动生成链路}{11}{section.4.5}%
+\contentsline {section}{\numberline {4.6}多 worker 分片与聚合}{12}{section.4.6}%
+\contentsline {chapter}{\numberline {第五章\hspace {.3em}}实现}{14}{chapter.5}%
+\contentsline {section}{\numberline {5.1}RISC-V 与 AArch64 后端}{14}{section.5.1}%
+\contentsline {section}{\numberline {5.2}结果落盘与离线分析}{14}{section.5.2}%
+\contentsline {section}{\numberline {5.3}MIPS 生成器案例}{15}{section.5.3}%
+\contentsline {section}{\numberline {5.4}当前实现边界}{15}{section.5.4}%
+\contentsline {chapter}{\numberline {第六章\hspace {.3em}}实验与评估}{16}{chapter.6}%
+\contentsline {section}{\numberline {6.1}Layer A：稳定性与受控样例}{16}{section.6.1}%
+\contentsline {section}{\numberline {6.2}Layer A：后端吞吐对比}{16}{section.6.2}%
+\contentsline {section}{\numberline {6.3}Layer B：真实硬件复现}{17}{section.6.3}%
+\contentsline {section}{\numberline {6.4}Layer A / Layer B 对照}{17}{section.6.4}%
+\contentsline {section}{\numberline {6.5}Layer C：生成器案例研究}{17}{section.6.5}%
+\contentsline {chapter}{\numberline {第七章\hspace {.3em}}讨论与局限}{20}{chapter.7}%
+\contentsline {chapter}{\numberline {第八章\hspace {.3em}}总结与展望}{21}{chapter.8}%
+\contentsline {chapter}{\numberline {附录 A\hspace {.3em}}附录：待补实验与写作占位}{24}{appendix.A}%
+\contentsline {section}{\numberline {A.1}Layer B 必补信息}{24}{section.A.1}%
+\contentsline {section}{\numberline {A.2}Layer A / Layer B 对照建议}{24}{section.A.2}%
+\contentsline {section}{\numberline {A.3}图表回填清单}{24}{section.A.3}%

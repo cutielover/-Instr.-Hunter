@@ -31,12 +31,25 @@ def _filter_by_artifact(records, artifact_filter: Optional[str]):
 def print_overview(records, families, context) -> None:
     counts = summarize_counts(records)
     title = "AARCH64" if context.sifter_arch == ARCH_AARCH64 else "RISC-V"
+    metadata = context.metadata or {}
+    raw_hidden = metadata.get("raw_hidden_count")
+    filtered_hidden = metadata.get("filtered_hidden_count")
+    filtered_by_ext = metadata.get("filtered_hidden_ext_counts")
     print("\n" + "=" * 72)
     print(f"{title} SIFTER RESULTS SUMMARY")
     print("=" * 72)
     print(f"\nLog file:             {context.logfile}")
     print(f"Entries:              {counts['total']}")
     print(f"Artifacts:            H={counts['H']} D={counts['D']} X={counts['X']} T={counts['T']}")
+    if raw_hidden is not None:
+        print(f"Raw Hidden:           {raw_hidden}")
+    if filtered_hidden is not None:
+        print(f"Hidden Filtered Out:  {filtered_hidden}")
+    if filtered_by_ext:
+        ext_summary = ", ".join(
+            f"{ext}={count}" for ext, count in sorted(filtered_by_ext.items())
+        )
+        print(f"Filtered By Ext:      {ext_summary}")
     print(f"Families:             {len(families)}")
     print(f"ISA:                  {context.isa_string}")
     print(f"Capstone flags:       {context.capstone_mode_description}")

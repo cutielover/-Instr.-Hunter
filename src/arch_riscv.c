@@ -595,9 +595,16 @@ void arch_inject_instruction(insn_info_t* insn)
     }
     packet = (uint8_t*)packet_buffer;
 
-    /* Re-fill the slot with ebreak in case previous iteration left data */
+    /*
+     * Place ebreak sentinels so that a successfully-executed test instruction
+     * always lands on ebreak → SIGTRAP, never on a zero word → SIGILL.
+     * This avoids relying on si_addr comparison to distinguish "SIGILL from
+     * the test instruction" vs "SIGILL from the sentinel", which is fragile
+     * on certain real-hardware platforms (observed on JH7110 / U74-MC).
+     */
     uint32_t ebreak = 0x00100073;
     memcpy(packet, &ebreak, 4);
+    memcpy(packet + 4, &ebreak, 4);
     if (insn->size == 2)
         memcpy(packet + 2, &ebreak, 4);
 
@@ -623,18 +630,21 @@ void arch_inject_instruction(insn_info_t* insn)
     if (sigsetjmp(jmp_env, 1) == 0) {
 #ifdef __riscv
         /*
-         * Register sandbox: set ALL GP registers (except gp/tp) to point
-         * into the read-only ebreak trap page before executing the test
-         * instruction. sp is set last, right before the jump.
-         *
-         * Signal handler uses SA_ONSTACK (alt stack), so it works even
-         * with sp pointing to the trap page. siglongjmp restores sp from
-         * the context saved by sigsetjmp.
+         * Register sandbox: set ALL GP registers to point into the
+         * read-only ebreak trap page before executing the test
+         * instruction.  gp and tp are included — the assembly
+         * trampoline (handler_trampoline.S) restores them via
+         * PC-relative addressing before entering the C handler.
          *
          * Trap page is R-X (read + exec, NO write):
          *  - stores via any register → SIGSEGV (no write perm)
          *  - jumps via any register → ebreak → SIGTRAP
          *  - PC-relative jumps → guard region (no exec) → SIGSEGV
+         *
+         * Without this, store instructions using gp/tp as base
+         * silently corrupt the injector's data segment (state,
+         * stdout_buffer, etc.), causing position-dependent output
+         * corruption (len=0 records, wrong encodings).
          */
         register uintptr_t r_safe __asm__("t0") = (uintptr_t)trap_page + PAGE_SIZE / 2;
         register uintptr_t r_target __asm__("t1") = (uintptr_t)packet;
@@ -644,8 +654,8 @@ void arch_inject_instruction(insn_info_t* insn)
 
         __asm__ volatile(
             "mv ra,  t0\n"
-            /* gp (x3) - keep valid for signal handler */
-            /* tp (x4) - keep valid for TLS */
+            "mv gp,  t0\n"
+            "mv tp,  t0\n"
             "mv t2,  t0\n"
             "mv s0,  t0\n"
             "mv s1,  t0\n"
@@ -686,6 +696,11 @@ void arch_inject_instruction(insn_info_t* insn)
 #endif
     }
 
+#ifdef __riscv
+    __asm__ volatile("ld gp, %0" : : "m"(saved_gp_value) : "memory");
+    __asm__ volatile("ld tp, %0" : : "m"(saved_tp_value) : "memory");
+#endif
+
     alarm(0);
 
     state.result.valid = 1;
@@ -712,20 +727,24 @@ void arch_inject_instruction(insn_info_t* insn)
         state.result.signum = 0;
         state.result.si_code = 0;
     } else if (caught_signal == SIGILL) {
-        if (caught_addr != test_addr) {
-            /*
-             * SIGILL but NOT at the test instruction address → the signal
-             * came from the ebreak sentinel (QEMU user-mode behaviour) or
-             * from somewhere beyond the test instruction.  Either way the
-             * test instruction itself executed successfully.
-             */
-            state.result.signum = 0;
-            state.result.si_code = 0;
-        } else {
-            /* SIGILL at the test instruction → CPU rejected the encoding */
-            state.result.signum = SIGILL;
-            state.result.si_code = caught_sicode;
-        }
+        /*
+         * With an explicit ebreak sentinel at packet + insn_size, a
+         * successfully-executed test instruction always triggers SIGTRAP
+         * (handled above), never SIGILL.  Therefore any SIGILL must
+         * originate from the test instruction itself — the CPU rejected
+         * the encoding.  No si_addr comparison is needed.
+         *
+         * The si_addr heuristic (caught_addr != test_addr) was previously
+         * used when the sentinel was an implicit zero-word that also
+         * produced SIGILL; it is no longer required and was found to be
+         * unreliable on certain real-hardware platforms (JH7110 / U74-MC)
+         * where si_addr exhibits position-dependent inaccuracies.
+         *
+         * For QEMU user-mode (where ebreak may produce SIGILL instead of
+         * SIGTRAP), a future build flag can re-enable the si_addr path.
+         */
+        state.result.signum = SIGILL;
+        state.result.si_code = caught_sicode;
     } else {
         /*
          * Any other signal (SIGSEGV, SIGBUS, SIGFPE, …) means the CPU

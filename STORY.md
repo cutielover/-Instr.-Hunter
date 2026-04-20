@@ -7,7 +7,7 @@
 
 ## 一句话贡献
 
-我们设计并实现（或设计并实现其中核心路径）一套**可扩展的微处理器隐藏指令分析工具**：在 **RISC-V 与 AArch64** 上以 **memcage 与 ptrace** 实现可控单条注入，用 **Capstone** 提供 ISA 视图并与信号联合分类；通过**统一的编排与二进制协议**支撑多后端；并给出**面向新 ISA 的配置描述与模板化代码生成（及与手工 memcage 加固的衔接）**，在**真实硬件与仿真/受控环境**中完成评估与对照。
+我们设计并实现一套**可扩展的微处理器隐藏指令分析工具**：在 **RISC-V 与 AArch64** 上以 **memcage 与 ptrace** 实现可控单条注入，用 **Capstone** 提供 ISA 视图并与信号联合分类；通过**统一编排与二进制协议**支撑多后端；并实现**面向新 ISA 的配置驱动模板生成**（`arch-specs/* -> generate_arch_backend.py -> arch_*.c`），在仿真/容器与后续实机环境中完成分层评估。
 
 ---
 
@@ -30,6 +30,15 @@
 
 ---
 
+## 当前落地进展（用于写作时区分已完成/待完成）
+
+- 已完成：`arch-specs/mips64el.json`、`tools/generate_arch_backend.py`、生成 `src/arch_mips.c` 与 `src/arch_mips.c.MEMCAGE_TODO.md`。  
+- 已完成：MIPS 容器镜像编译与 quick smoke（memcage 路径）可跑，`data/log` 可见非零 `Tested`。  
+- 已知边界：`linux/mips64le` qemu-user 下 ptrace 可能不可用（`PTRACE_TRACEME` 限制），ptrace 对照优先放实机/原生 Linux。  
+- 待完成：层 B 实机数据、MIPS memcage 的 ISA 特化 hardening 与信号语义细化。
+
+---
+
 ## 与 iScanU / 既有工作的关系
 
 - **继承**：ptrace + memcage 思想、信号 + 反汇编分析框架、用户态扫描。  
@@ -48,7 +57,7 @@
 | C4 | 受控注入（如 QEMU/桩）下端到端行为符合预期 | [TBD] 层 A 记录 |
 | **C5** | **在真实硬件上完成扫描并得到可报告统计** | [TBD] **层 B：板卡标识 + `data/log`** |
 | **C6** | **仿真与实机在约定子集上可对照**（一致或差异可解释） | [TBD] **层 A vs 层 B 表** |
-| **C7** | **新增 ISA 可通过配置 + 生成（+ 限定手工）接入并产出有效 raw 输出** | [TBD] **层 C：MIPS 或其它 case** |
+| **C7** | **新增 ISA 可通过配置 + 生成（+ 限定手工）接入并产出有效输出** | 已完成首版：`mips64el` 生成链路 + quick 运行证据（`src/arch_mips.c`、`src/arch_mips.c.MEMCAGE_TODO.md`、`data/log`） |
 
 ---
 
