@@ -3,8 +3,11 @@ data/
 *.sh
 docs/
 Dockerfile.*
-*.workspace
+*workspace
 examples/
 __pycache__/
 obj/
 scripts/
+refine-logs/
+paper/
+.DS_Store
