@@ -4,10 +4,12 @@ data/
 docs/
 Dockerfile.*
 *workspace
+*workspace
 examples/
 __pycache__/
 obj/
 scripts/
 refine-logs/
 paper/
+work_docs/
 .DS_Store
